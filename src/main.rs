@@ -1,4 +1,4 @@
-use clap::{App, SubCommand, AppSettings, Arg};
+use clap::{App, SubCommand, AppSettings, Arg, ArgMatches};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -56,15 +56,23 @@ fn address_arg() -> Arg<'static, 'static> {
         .required(true)
 }
 
+fn socket_type_arg(values: &[&'static str]) -> Arg<'static, 'static> {
+    Arg::with_name("socket type")
+        .long("type")
+        .possible_values(values)
+        .default_value(values[0])
+}
+
+fn extract_common_parameters<'a>(matches: &'a ArgMatches) -> (&'a str, &'a str) {
+    (matches.value_of("address").unwrap(), matches.value_of("socket type").unwrap())
+}
+
 fn main() {
     let matches = App::new("0MQ CLI")
         .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(SubCommand::with_name("send")
             .arg(address_arg())
-            .arg(Arg::with_name("socket type")
-                .long("type")
-                .possible_values(&["PUB", "PUSH"])
-                .default_value("PUB"))
+            .arg(socket_type_arg(&["PUSH", "PUB", ]))
             .arg(Arg::with_name("message")
                 .long("message")
                 .short("m")
@@ -72,14 +80,11 @@ fn main() {
                 .required(true)))
         .subcommand(SubCommand::with_name("listen")
             .arg(address_arg())
+            .arg(socket_type_arg(&["PULL", "SUB", ]))
             .arg(Arg::with_name("topic")
                 .long("topic")
                 .short("t")
-                .takes_value(true))
-            .arg(Arg::with_name("socket type")
-                .long("type")
-                .possible_values(&["SUB", "PULL"])
-                .default_value("PUB")))
+                .takes_value(true)))
         .get_matches();
 
     println!("{:?}", matches);
@@ -88,9 +93,11 @@ fn main() {
         ("send", args) => {
             match args {
                 Some(matches) => {
-                    match (matches.value_of("address"), matches.value_of("message"), matches.value_of("socket type")) {
-                        (Some(address), Some(message), Some("PUB")) => { publish(address, message); },
-                        (Some(address), Some(message), Some("PUSH")) => { push(address, message); }
+                    let (address, socket_type) = extract_common_parameters(matches);
+                    let message = matches.value_of("message").unwrap();
+                    match socket_type {
+                        "PUB" => { publish(address, message); },
+                        "PUSH" => { push(address, message); }
                         _ => {}
                     }
                 }
@@ -100,13 +107,12 @@ fn main() {
         ("listen", args) => {
             match args {
                 Some(matches) => {
-                    match (matches.value_of("address"), matches.value_of("socket type")) {
-                        (Some(address), Some("SUB")) => {
+                    let (address, socket_type) = extract_common_parameters(matches);
+                    match socket_type {
+                        "SUB" => {
                             subscribe_and_listen(matches.value_of("topic"), address);
                         },
-                        (Some(address), Some("PULL")) => {
-                            pull(address);
-                        },
+                        "PULL" => { pull(address); },
                         _ => {}
                     }
                 }
