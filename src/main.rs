@@ -1,6 +1,7 @@
 use clap::{App, SubCommand, AppSettings, Arg, ArgMatches};
 use std::thread::sleep;
 use std::time::Duration;
+use std::process::id;
 
 fn create_socket(ctx: &zmq::Context, parameters: SocketParameters) -> zmq::Socket {
     let socket = ctx.socket(match parameters.socket_type {
@@ -8,6 +9,7 @@ fn create_socket(ctx: &zmq::Context, parameters: SocketParameters) -> zmq::Socke
         "SUB" => zmq::SUB,
         "PUSH" => zmq::PUSH,
         "PULL" => zmq::PULL,
+        "PAIR" => zmq::PAIR,
         _ => zmq::PULL,
     }).unwrap();
 
@@ -50,7 +52,7 @@ fn pull(parameters: SocketParameters) {
 
     loop {
         let msg = socket.recv_msg(0);
-        println!("message: {:?}", msg.unwrap().as_str().unwrap());
+        println!("received: {:?}", msg.unwrap().as_str().unwrap());
     }
 }
 
@@ -60,6 +62,32 @@ fn push(parameters: SocketParameters, message: &str) {
     let socket = create_socket(&ctx, parameters);
     sleep(Duration::from_millis(100));
     socket.send(message, 0).unwrap();
+}
+
+fn chat(parameters: SocketParameters) {
+    println!("Chat{:?}", parameters.address);
+    let ctx = zmq::Context::new();
+    let socket = create_socket(&ctx, parameters);
+    socket.set_rcvtimeo(1000);
+
+    sleep(Duration::from_millis(100));
+
+    loop {
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).unwrap();
+        input.pop();
+        if input.len() > 0 {
+            socket.send(input.as_str(), 0).unwrap();
+            println!("sent: {}", input.as_str());
+        }
+
+        sleep(Duration::from_millis(100));
+
+        socket.recv_msg(0).and_then(|msg| {
+            println!("received: {:?}", msg.as_str().unwrap());
+            Ok(())
+        });
+    }
 }
 
 fn address_arg() -> Arg<'static, 'static> {
@@ -129,6 +157,10 @@ fn main() {
                 .long("topic")
                 .short("t")
                 .takes_value(true)))
+        .subcommand(SubCommand::with_name("chat")
+            .arg(address_arg())
+            .arg(socket_type_arg(&["PAIR", "PUSH", "PULL", "PUB", "SUB"]))
+            .arg(Arg::with_name("bind or connect").possible_values(&["bind", "connect"])))
         .get_matches();
 
     //println!("{:?}", matches);
@@ -147,7 +179,7 @@ fn main() {
                 }
                 None => {}
             }
-        }
+        },
         ("listen", args) => {
             match args {
                 Some(matches) => {
@@ -160,6 +192,15 @@ fn main() {
                         _ => {}
                     }
                 }
+                None => {}
+            }
+        },
+        ("chat", args) => {
+            match args {
+                Some(matches) => {
+                    let parameters = extract_common_parameters(matches);
+                    chat(parameters);
+                    }
                 None => {}
             }
         }
