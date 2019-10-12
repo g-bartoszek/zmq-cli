@@ -9,3 +9,6 @@ edition = "2018"
 [dependencies]
 clap = "2.33.0"
 zmq = "0.9"
+
+[dev-dependencies]
+assert_cmd = "0.11"
