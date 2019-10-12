@@ -1,7 +1,6 @@
 use clap::{App, SubCommand, AppSettings, Arg, ArgMatches};
 use std::thread::sleep;
 use std::time::Duration;
-use std::process::id;
 
 fn create_socket(ctx: &zmq::Context, parameters: SocketParameters) -> zmq::Socket {
     let socket = ctx.socket(match parameters.socket_type {
@@ -21,13 +20,13 @@ fn create_socket(ctx: &zmq::Context, parameters: SocketParameters) -> zmq::Socke
     socket
 }
 
-fn subscribe_and_listen(topic: Option<&str>, parameters: SocketParameters) {
+fn listen(topic: Option<&str>, parameters: SocketParameters) {
     println!("Listening {:?}", parameters.address);
     let ctx = zmq::Context::new();
 
     let socket = create_socket(&ctx, parameters);
 
-    socket.set_subscribe(topic.unwrap_or("").as_bytes()).unwrap();
+    let _ = socket.set_subscribe(topic.unwrap_or("").as_bytes());
 
     loop {
         let msg = socket.recv_msg(0);
@@ -35,31 +34,11 @@ fn subscribe_and_listen(topic: Option<&str>, parameters: SocketParameters) {
     }
 }
 
-fn publish(parameters: SocketParameters, message: &str) {
+fn send(parameters: SocketParameters, message: &str) {
     println!("Sending to {:?}", parameters.address);
     let ctx = zmq::Context::new();
     let socket = create_socket(&ctx, parameters);
 
-    sleep(Duration::from_millis(100));
-    socket.send(message, 0).unwrap();
-}
-
-
-fn pull(parameters: SocketParameters) {
-    println!("Listening {:?}", parameters.address);
-    let ctx = zmq::Context::new();
-    let socket = create_socket(&ctx, parameters);
-
-    loop {
-        let msg = socket.recv_msg(0);
-        println!("received: {:?}", msg.unwrap().as_str().unwrap());
-    }
-}
-
-fn push(parameters: SocketParameters, message: &str) {
-    println!("Sending to {:?}", parameters.address);
-    let ctx = zmq::Context::new();
-    let socket = create_socket(&ctx, parameters);
     sleep(Duration::from_millis(100));
     socket.send(message, 0).unwrap();
 }
@@ -68,7 +47,8 @@ fn chat(parameters: SocketParameters) {
     println!("Chat{:?}", parameters.address);
     let ctx = zmq::Context::new();
     let socket = create_socket(&ctx, parameters);
-    socket.set_rcvtimeo(1000);
+    socket.set_rcvtimeo(1000).unwrap();
+    let _ = socket.set_subscribe("".as_bytes());
 
     sleep(Duration::from_millis(100));
 
@@ -77,13 +57,15 @@ fn chat(parameters: SocketParameters) {
         std::io::stdin().read_line(&mut input).unwrap();
         input.pop();
         if input.len() > 0 {
-            socket.send(input.as_str(), 0).unwrap();
-            println!("sent: {}", input.as_str());
+            match socket.send(input.as_str(), 0) {
+                Ok(_) => println!("sent: {}", input.as_str()),
+                Err(err) => println!("error: {}", err)
+            }
         }
 
         sleep(Duration::from_millis(100));
 
-        socket.recv_msg(0).and_then(|msg| {
+        let _ = socket.recv_msg(0).and_then(|msg| {
             println!("received: {:?}", msg.as_str().unwrap());
             Ok(())
         });
@@ -107,14 +89,14 @@ fn socket_type_arg(values: &[&'static str]) -> Arg<'static, 'static> {
 
 enum AssociationType {
     Bind,
-    Connect
+    Connect,
 }
 
 struct SocketParameters<'a>
 {
     address: &'a str,
     socket_type: &'a str,
-    association_type: AssociationType
+    association_type: AssociationType,
 }
 
 fn extract_common_parameters<'a>(matches: &'a ArgMatches) -> SocketParameters<'a> {
@@ -131,10 +113,11 @@ fn extract_common_parameters<'a>(matches: &'a ArgMatches) -> SocketParameters<'a
         }
     };
 
-    SocketParameters{
+    SocketParameters {
         address: matches.value_of("address").unwrap(),
         socket_type,
-        association_type: a}
+        association_type: a,
+    }
 }
 
 fn main() {
@@ -166,43 +149,18 @@ fn main() {
     //println!("{:?}", matches);
 
     match matches.subcommand() {
-        ("send", args) => {
-            match args {
-                Some(matches) => {
-                    let parameters = extract_common_parameters(matches);
-                    let message = matches.value_of("message").unwrap();
-                    match parameters.socket_type {
-                        "PUB" => { publish(parameters, message); },
-                        "PUSH" => { push(parameters, message); }
-                        _ => {}
-                    }
-                }
-                None => {}
-            }
-        },
-        ("listen", args) => {
-            match args {
-                Some(matches) => {
-                    let parameters = extract_common_parameters(matches);
-                    match parameters.socket_type {
-                        "SUB" => {
-                            subscribe_and_listen(matches.value_of("topic"), parameters);
-                        },
-                        "PULL" => { pull(parameters); },
-                        _ => {}
-                    }
-                }
-                None => {}
-            }
-        },
-        ("chat", args) => {
-            match args {
-                Some(matches) => {
-                    let parameters = extract_common_parameters(matches);
-                    chat(parameters);
-                    }
-                None => {}
-            }
+        ("send", Some(matches)) => {
+            let parameters = extract_common_parameters(matches);
+            let message = matches.value_of("message").unwrap();
+            send(parameters, message);
+        }
+        ("listen", Some(matches)) => {
+            let parameters = extract_common_parameters(matches);
+            listen(matches.value_of("topic"), parameters);
+        }
+        ("chat", Some(matches)) => {
+            let parameters = extract_common_parameters(matches);
+            chat(parameters);
         }
         _ => {}
     }
