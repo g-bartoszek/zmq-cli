@@ -130,7 +130,8 @@ fn main() {
                 .long("message")
                 .short("m")
                 .takes_value(true)
-                .required(true))
+                .required(true)
+                .multiple(true))
             .arg(Arg::with_name("bind or connect").possible_values(&["bind", "connect"])))
         .subcommand(SubCommand::with_name("listen")
             .arg(address_arg())
@@ -151,8 +152,8 @@ fn main() {
     match matches.subcommand() {
         ("send", Some(matches)) => {
             let parameters = extract_common_parameters(matches);
-            let message = matches.value_of("message").unwrap();
-            send(parameters, message);
+            let message = matches.values_of("message").unwrap().collect::<Vec<_>>().join(" ");
+            send(parameters, message.as_str());
         }
         ("listen", Some(matches)) => {
             let parameters = extract_common_parameters(matches);
