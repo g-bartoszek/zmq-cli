@@ -29,6 +29,7 @@ fn wait_for_message(reader: &mut NonBlockingReader<ChildStdout>, message: &str) 
         reader.read_available_to_string(&mut buffer);
         //println!("OUT: {}", buffer);
         if buffer.contains(message) {
+            //println!("MATCHED: {}", buffer);
             return Ok(());
         }
         sleep(Duration::from_millis(100));
@@ -87,66 +88,35 @@ fn test_pub_sub() {
 }
 
 fn test_pair_chat() {
-    let mut instance1 = Command::cargo_bin("rzmq").unwrap()
-        .args(&["chat", "--address", "tcp://127.0.0.1:5559", "--type", "PAIR", "bind"])
-        .stdout(Stdio::piped())
-        .stdin(Stdio::piped())
-        .spawn().unwrap();
+    let mut instance1 = run_instance("chat --address tcp://127.0.0.1:5559 --type PAIR bind").unwrap();
+    let mut instance2 = run_instance("chat --address tcp://127.0.0.1:5559 --type PAIR connect").unwrap();
 
-    let mut instance2 = Command::cargo_bin("rzmq").unwrap()
-        .args(&["chat", "--address", "tcp://127.0.0.1:5559", "--type", "PAIR", "connect"])
-        .stdout(Stdio::piped())
-        .stdin(Stdio::piped())
-        .spawn().unwrap();
+    let mut reader1  = NonBlockingReader::from_fd(instance1.stdout.take().unwrap()).unwrap();
+    let mut reader2  = NonBlockingReader::from_fd(instance2.stdout.take().unwrap()).unwrap();
 
-    let mut buffer = String::new();
+
+    instance1.stdin.as_mut().unwrap().write("Hi!\n".as_bytes());
+    instance1.stdin.as_mut().unwrap().write("How are you?\n".as_bytes());
 
     sleep(Duration::from_secs(1));
-    {
-        let mut instance2_out = BufReader::new(instance2.stdout.as_mut().unwrap());
-        let mut instance1_out = BufReader::new(instance1.stdout.as_mut().unwrap());
 
-        instance1.stdin.as_mut().unwrap().write("Hi!\n".as_bytes());
-        instance1.stdin.as_mut().unwrap().write("How are you?\n".as_bytes());
+    instance2.stdin.as_mut().unwrap().write("\n".as_bytes()).unwrap();
+    assert!(wait_for_message(&mut reader2,  "Hi!").is_ok());
 
-        sleep(Duration::from_secs(1));
+    instance2.stdin.as_mut().unwrap().write("\n".as_bytes()).unwrap();
+    assert!(wait_for_message(&mut reader2,  "How are you?").is_ok());
 
-        instance2.stdin.as_mut().unwrap().write("\n".as_bytes()).unwrap();
-        instance2.stdin.as_mut().unwrap().write("\n".as_bytes()).unwrap();
+    instance2.stdin.as_mut().unwrap().write("I'm fine\n".as_bytes()).unwrap();
 
-        sleep(Duration::from_secs(1));
+    instance1.stdin.as_mut().unwrap().write("\n".as_bytes());
+    assert!(wait_for_message(&mut reader1,  "fine").is_ok());
 
-        instance2_out.read_line(&mut buffer);
-        instance2_out.read_line(&mut buffer);
-        println!("Output {}", buffer);
-        assert!(buffer.contains("Hi!"));
 
-        instance2.stdin.as_mut().unwrap().write("\n".as_bytes()).unwrap();
-
-        instance2_out.read_line(&mut buffer);
-        println!("Output {}", buffer);
-        assert!(buffer.contains("How are you?"));
-
-        instance2.stdin.as_mut().unwrap().write("I'm fine\n".as_bytes()).unwrap();
-
-        sleep(Duration::from_secs(1));
-
-        instance1.stdin.as_mut().unwrap().write("\n".as_bytes()).unwrap();
-        instance1_out.read_line(&mut buffer);
-        instance1_out.read_line(&mut buffer);
-        instance1_out.read_line(&mut buffer);
-        instance1_out.read_line(&mut buffer);
-        println!("Output {}", buffer);
-        assert!(buffer.contains("fine"));
-    }
-
-    instance1.kill();
-    instance2.kill();
 }
 
 #[test]
 fn integration_tests() {
     test_push_pull_send_listen();
     test_pub_sub();
-  //  test_pair_chat();
+    test_pair_chat();
 }
