@@ -50,7 +50,7 @@ fn chat(parameters: SocketParameters) -> Result<(), Box<dyn Error>> {
     let ctx = zmq::Context::new();
     let socket = create_socket(&ctx, parameters)?;
     socket.set_rcvtimeo(1000)?;
-    let _ = socket.set_subscribe("".as_bytes())?;
+    let _ = socket.set_subscribe("".as_bytes());
 
     sleep(Duration::from_millis(100));
 
@@ -74,19 +74,18 @@ fn chat(parameters: SocketParameters) -> Result<(), Box<dyn Error>> {
     }
 }
 
-fn address_arg() -> Arg<'static, 'static> {
-    Arg::with_name("address")
+fn set_common_socket_args<'a, 'b>(subcommand: App<'a, 'b>, socket_types: &[&'static str]) -> App<'a, 'b> {
+    subcommand.arg(Arg::with_name("address")
         .long("address")
         .short("a")
         .takes_value(true)
-        .required(true)
-}
-
-fn socket_type_arg(values: &[&'static str]) -> Arg<'static, 'static> {
-    Arg::with_name("socket type")
-        .long("type")
-        .possible_values(values)
-        .default_value(values[0])
+        .required(true))
+        .arg(Arg::with_name("socket type")
+            .long("type")
+            .possible_values(socket_types)
+            .default_value(socket_types[0]))
+        .arg(Arg::with_name("bind").long("bind").conflicts_with("connect"))
+        .arg(Arg::with_name("connect").long("connect"))
 }
 
 enum AssociationType {
@@ -103,10 +102,13 @@ struct SocketParameters<'a>
 
 fn extract_common_parameters<'a>(matches: &'a ArgMatches) -> SocketParameters<'a> {
     let socket_type = matches.value_of("socket type").unwrap();
-    let a = match matches.value_of("bind or connect") {
-        Some("bind") => AssociationType::Bind,
-        Some("connect") => AssociationType::Connect,
-        _ => match socket_type {
+
+    let a = if matches.is_present("bind") {
+        AssociationType::Bind
+    } else if matches.is_present("connect") {
+        AssociationType::Connect
+    } else {
+        match socket_type {
             "PUSH" => AssociationType::Bind,
             "PUB" => AssociationType::Bind,
             "SUB" => AssociationType::Connect,
@@ -125,28 +127,20 @@ fn extract_common_parameters<'a>(matches: &'a ArgMatches) -> SocketParameters<'a
 fn main() {
     let matches = App::new("0MQ CLI")
         .setting(AppSettings::ArgRequiredElseHelp)
-        .subcommand(SubCommand::with_name("send")
-            .arg(address_arg())
-            .arg(socket_type_arg(&["PUSH", "PUB", ]))
+        .subcommand(set_common_socket_args(SubCommand::with_name("send"),&["PUSH", "PUB", ])
             .arg(Arg::with_name("message")
                 .long("message")
                 .short("m")
                 .takes_value(true)
                 .required(true)
-                .multiple(true))
-            .arg(Arg::with_name("bind or connect").possible_values(&["bind", "connect"])))
-        .subcommand(SubCommand::with_name("listen")
-            .arg(address_arg())
-            .arg(socket_type_arg(&["PULL", "SUB", ]))
-            .arg(Arg::with_name("bind or connect").possible_values(&["bind", "connect"]))
+                .multiple(true)))
+        .subcommand(set_common_socket_args(SubCommand::with_name("listen"),&["PULL", "SUB", ])
             .arg(Arg::with_name("topic")
                 .long("topic")
                 .short("t")
                 .takes_value(true)))
-        .subcommand(SubCommand::with_name("chat")
-            .arg(address_arg())
-            .arg(socket_type_arg(&["PAIR", "PUSH", "PULL", "PUB", "SUB"]))
-            .arg(Arg::with_name("bind or connect").possible_values(&["bind", "connect"])))
+        .subcommand(set_common_socket_args(SubCommand::with_name("chat"),
+                                           &["PAIR", "PUSH", "PULL", "PUB", "SUB"]))
         .get_matches();
 
     //println!("{:?}", matches);
