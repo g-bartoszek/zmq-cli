@@ -36,20 +36,20 @@ fn test_pair_chat() {
     let mut instance1 = run_instance("chat --address tcp://127.0.0.1:5559 --type PAIR bind").unwrap();
     let mut instance2 = run_instance("chat --address tcp://127.0.0.1:5559 --type PAIR connect").unwrap();
 
-    instance1.stdin.as_mut().unwrap().write("Hi!\n".as_bytes());
-    instance1.stdin.as_mut().unwrap().write("How are you?\n".as_bytes());
+    instance1.write("Hi!\n");
+    instance1.write("How are you?\n");
 
     sleep(Duration::from_secs(1));
 
-    instance2.stdin.as_mut().unwrap().write("\n".as_bytes()).unwrap();
+    instance2.write("\n");
     assert!(instance2.wait_for_message(  "Hi!").is_ok());
 
-    instance2.stdin.as_mut().unwrap().write("\n".as_bytes()).unwrap();
+    instance2.write("\n");
     assert!(instance2.wait_for_message(  "How are you?").is_ok());
 
-    instance2.stdin.as_mut().unwrap().write("I'm fine\n".as_bytes()).unwrap();
+    instance2.write("I'm fine\n");
 
-    instance1.stdin.as_mut().unwrap().write("\n".as_bytes());
+    instance1.write("\n");
     assert!(instance1.wait_for_message( "fine").is_ok());
 
 
@@ -132,6 +132,10 @@ impl Wrapper {
         }
 
         Err("Message not received")
+    }
+
+    fn write(&mut self, input: &str) {
+        self.stdin.as_mut().unwrap().write(input.as_bytes()).unwrap();
     }
 }
 

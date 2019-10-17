@@ -1,8 +1,9 @@
 use clap::{App, SubCommand, AppSettings, Arg, ArgMatches};
 use std::thread::sleep;
 use std::time::Duration;
+use std::error::Error;
 
-fn create_socket(ctx: &zmq::Context, parameters: SocketParameters) -> zmq::Socket {
+fn create_socket(ctx: &zmq::Context, parameters: SocketParameters) -> Result<zmq::Socket, Box<dyn Error>> {
     let socket = ctx.socket(match parameters.socket_type {
         "PUB" => zmq::PUB,
         "SUB" => zmq::SUB,
@@ -10,51 +11,52 @@ fn create_socket(ctx: &zmq::Context, parameters: SocketParameters) -> zmq::Socke
         "PULL" => zmq::PULL,
         "PAIR" => zmq::PAIR,
         _ => zmq::PULL,
-    }).unwrap();
+    })?;
 
     match parameters.association_type {
-        AssociationType::Connect => socket.connect(parameters.address).unwrap(),
-        AssociationType::Bind => socket.bind(parameters.address).unwrap(),
+        AssociationType::Connect => socket.connect(parameters.address)?,
+        AssociationType::Bind => socket.bind(parameters.address)?,
     };
 
-    socket
+    Ok(socket)
 }
 
-fn listen(topic: Option<&str>, parameters: SocketParameters) {
+fn listen(topic: Option<&str>, parameters: SocketParameters) -> Result<(), Box<dyn Error>>{
     println!("Listening {:?}", parameters.address);
     let ctx = zmq::Context::new();
 
-    let socket = create_socket(&ctx, parameters);
+    let socket = create_socket(&ctx, parameters)?;
 
     let _ = socket.set_subscribe(topic.unwrap_or("").as_bytes());
 
     loop {
-        let msg = socket.recv_msg(0);
-        println!("message: {:?}", msg.unwrap().as_str().unwrap());
+        let msg = socket.recv_msg(0)?;
+        println!("message: {:?}", msg.as_str().unwrap());
     }
 }
 
-fn send(parameters: SocketParameters, message: &str) {
+fn send(parameters: SocketParameters, message: &str) -> Result<(), Box<dyn Error>> {
     println!("Sending to {:?}", parameters.address);
     let ctx = zmq::Context::new();
-    let socket = create_socket(&ctx, parameters);
+    let socket = create_socket(&ctx, parameters)?;
 
     sleep(Duration::from_millis(100));
-    socket.send(message, 0).unwrap();
+    socket.send(message, 0)?;
+    Ok(())
 }
 
-fn chat(parameters: SocketParameters) {
+fn chat(parameters: SocketParameters) -> Result<(), Box<dyn Error>> {
     println!("Chat{:?}", parameters.address);
     let ctx = zmq::Context::new();
-    let socket = create_socket(&ctx, parameters);
-    socket.set_rcvtimeo(1000).unwrap();
-    let _ = socket.set_subscribe("".as_bytes());
+    let socket = create_socket(&ctx, parameters)?;
+    socket.set_rcvtimeo(1000)?;
+    let _ = socket.set_subscribe("".as_bytes())?;
 
     sleep(Duration::from_millis(100));
 
     loop {
         let mut input = String::new();
-        std::io::stdin().read_line(&mut input).unwrap();
+        std::io::stdin().read_line(&mut input)?;
         input.pop();
         if input.len() > 0 {
             match socket.send(input.as_str(), 0) {
@@ -149,20 +151,25 @@ fn main() {
 
     //println!("{:?}", matches);
 
-    match matches.subcommand() {
+    match match matches.subcommand() {
         ("send", Some(matches)) => {
             let parameters = extract_common_parameters(matches);
             let message = matches.values_of("message").unwrap().collect::<Vec<_>>().join(" ");
-            send(parameters, message.as_str());
+            send(parameters, message.as_str())
         }
         ("listen", Some(matches)) => {
             let parameters = extract_common_parameters(matches);
-            listen(matches.value_of("topic"), parameters);
+            listen(matches.value_of("topic"), parameters)
         }
         ("chat", Some(matches)) => {
             let parameters = extract_common_parameters(matches);
-            chat(parameters);
+            chat(parameters)
         }
-        _ => {}
-    }
+        _ => Ok(())
+    } {
+        Ok(()) => {}
+        Err(e) => {
+            println!("Error: {}", e);
+        }
+    };
 }
