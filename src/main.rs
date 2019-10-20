@@ -4,7 +4,6 @@ mod communication;
 
 use communication::*;
 
-
 fn set_common_socket_args<'a, 'b>(subcommand: App<'a, 'b>, socket_types: &[&'static str]) -> App<'a, 'b> {
     subcommand.arg(Arg::with_name("address")
         .long("address")
@@ -20,20 +19,14 @@ fn set_common_socket_args<'a, 'b>(subcommand: App<'a, 'b>, socket_types: &[&'sta
 }
 
 fn extract_common_parameters<'a>(matches: &'a ArgMatches) -> SocketParameters<'a> {
-    let socket_type = matches.value_of("socket type").unwrap();
+    let socket_type: SocketType = matches.value_of("socket type").unwrap().into();
 
     let a = if matches.is_present("bind") {
         AssociationType::Bind
     } else if matches.is_present("connect") {
         AssociationType::Connect
     } else {
-        match socket_type {
-            "PUSH" => AssociationType::Bind,
-            "PUB" => AssociationType::Bind,
-            "SUB" => AssociationType::Connect,
-            "PULL" => AssociationType::Connect,
-            _ => AssociationType::Connect,
-        }
+        socket_type.default_association()
     };
 
     SocketParameters {
@@ -46,20 +39,37 @@ fn extract_common_parameters<'a>(matches: &'a ArgMatches) -> SocketParameters<'a
 fn main() {
     let matches = App::new("0MQ CLI")
         .setting(AppSettings::ArgRequiredElseHelp)
-        .subcommand(set_common_socket_args(SubCommand::with_name("send"),&["PUSH", "PUB", ])
+        .subcommand(set_common_socket_args(SubCommand::with_name("send"),
+                                           &[
+                                               SocketType::PUSH.into(),
+                                               SocketType::PUB.into(),
+                                               SocketType::REQ.into(),
+                                               SocketType::PAIR.into()])
             .arg(Arg::with_name("message")
                 .long("message")
                 .short("m")
                 .takes_value(true)
                 .required(true)
                 .multiple(true)))
-        .subcommand(set_common_socket_args(SubCommand::with_name("listen"),&["PULL", "SUB", ])
+        .subcommand(set_common_socket_args(SubCommand::with_name("listen"),
+                                           &[
+                                               SocketType::PULL.into(),
+                                               SocketType::SUB.into(),
+                                               SocketType::PAIR.into()])
             .arg(Arg::with_name("topic")
                 .long("topic")
                 .short("t")
                 .takes_value(true)))
         .subcommand(set_common_socket_args(SubCommand::with_name("chat"),
-                                           &["PAIR", "PUSH", "PULL", "PUB", "SUB"]))
+                                           &[
+                                               SocketType::PAIR.into(),
+                                               SocketType::SUB.into(),
+                                               SocketType::PUB.into(),
+                                               SocketType::PULL.into(),
+                                               SocketType::PUSH.into(),
+                                               SocketType::REQ.into(),
+                                               SocketType::REP.into(),
+                                           ]))
         .get_matches();
 
     //println!("{:?}", matches);
@@ -68,7 +78,7 @@ fn main() {
         ("send", Some(matches)) => {
             let parameters = extract_common_parameters(matches);
             let message = matches.values_of("message").unwrap().collect::<Vec<_>>().join(" ");
-            send(parameters, message.as_str())
+            send(parameters, &message)
         }
         ("listen", Some(matches)) => {
             let parameters = extract_common_parameters(matches);

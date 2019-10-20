@@ -10,18 +10,73 @@ pub enum AssociationType {
 pub struct SocketParameters<'a>
 {
     pub address: &'a str,
-    pub socket_type: &'a str,
+    pub socket_type: SocketType,
     pub association_type: AssociationType,
+}
+
+#[allow(non_camel_case_types)]
+pub enum SocketType {
+    PUB,
+    SUB,
+    REQ,
+    REP,
+    PUSH,
+    PULL,
+    PAIR,
+}
+
+impl SocketType {
+    pub fn default_association(&self) -> AssociationType {
+       match self {
+           Self::PUB => AssociationType::Bind,
+           Self::SUB => AssociationType::Connect,
+           Self::REQ => AssociationType::Connect,
+           Self::REP => AssociationType::Bind,
+           Self::PUSH => AssociationType::Connect,
+           Self::PULL => AssociationType::Bind,
+           Self::PAIR => AssociationType::Bind,
+       }
+    }
+}
+
+impl std::convert::From<SocketType> for &str {
+    fn from(s: SocketType) -> Self {
+        match s {
+            SocketType::PUB=> "PUB",
+            SocketType::SUB=> "SUB",
+            SocketType::REQ=> "REQ",
+            SocketType::REP=> "REP",
+            SocketType::PUSH=> "PUSH",
+            SocketType::PULL=> "PULL",
+            SocketType::PAIR=> "PAIR",
+        }
+    }
+}
+
+impl std::convert::From<&str> for SocketType {
+    fn from(s: &str) -> Self {
+        match s {
+            "PUB" => SocketType::PUB,
+            "SUB" => SocketType::SUB,
+            "REQ" => SocketType::REQ,
+            "REP" => SocketType::REP,
+            "PUSH" => SocketType::PUSH,
+            "PULL" => SocketType::PULL,
+            "PAIR" => SocketType::PAIR,
+            _ => SocketType::PAIR,
+        }
+    }
 }
 
 pub fn create_socket(ctx: &zmq::Context, parameters: SocketParameters) -> Result<zmq::Socket, Box<dyn Error>> {
     let socket = ctx.socket(match parameters.socket_type {
-        "PUB" => zmq::PUB,
-        "SUB" => zmq::SUB,
-        "PUSH" => zmq::PUSH,
-        "PULL" => zmq::PULL,
-        "PAIR" => zmq::PAIR,
-        _ => zmq::PULL,
+        SocketType::PUB => zmq::PUB,
+        SocketType::SUB => zmq::SUB,
+        SocketType::PUSH => zmq::PUSH,
+        SocketType::PULL => zmq::PULL,
+        SocketType::PAIR => zmq::PAIR,
+        SocketType::REQ => zmq::REQ,
+        SocketType::REP => zmq::REP,
     })?;
 
     match parameters.association_type {
@@ -70,7 +125,7 @@ pub fn chat(parameters: SocketParameters) -> Result<(), Box<dyn Error>> {
         std::io::stdin().read_line(&mut input)?;
         input.pop();
         if input.len() > 0 {
-            match socket.send(input.as_str(), 0) {
+            match socket.send(&input, 0) {
                 Ok(_) => println!("sent: {}", input.as_str()),
                 Err(err) => println!("error: {}", err)
             }
