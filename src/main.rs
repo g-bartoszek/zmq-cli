@@ -14,6 +14,9 @@ fn set_common_socket_args<'a, 'b>(subcommand: App<'a, 'b>, socket_types: &[&'sta
             .long("type")
             .possible_values(socket_types)
             .default_value(socket_types[0]))
+        .arg(Arg::with_name("socket id")
+            .long("id")
+            .takes_value(true))
         .arg(Arg::with_name("bind").long("bind").conflicts_with("connect"))
         .arg(Arg::with_name("connect").long("connect"))
 }
@@ -33,6 +36,7 @@ fn extract_common_parameters<'a>(matches: &'a ArgMatches) -> SocketParameters<'a
         address: matches.value_of("address").unwrap(),
         socket_type,
         association_type: a,
+        socket_id: matches.value_of("socket id").or_else(|| None)
     }
 }
 
@@ -69,6 +73,8 @@ fn main() {
                                                SocketType::PUSH.into(),
                                                SocketType::REQ.into(),
                                                SocketType::REP.into(),
+                                               SocketType::ROUTER.into(),
+                                               SocketType::DEALER.into(),
                                            ]))
         .get_matches();
 

@@ -55,11 +55,25 @@ fn test_pair_chat() {
 
 }
 
+fn test_router_dealer_chat() {
+    let mut router = run_instance("chat --address tcp://127.0.0.1:5559 --type ROUTER --bind").unwrap();
+    let mut dealer = run_instance("chat --address tcp://127.0.0.1:5559 --type DEALER --connect --id ID1").unwrap();
+
+    dealer.write("MSG1\n");
+
+    sleep(Duration::from_secs(1));
+
+    router.write("\n");
+    assert!(router.wait_for_message(  "[\"ID1\", \"MSG1\"]").is_ok());
+
+}
+
 #[test]
 fn integration_tests() {
     test_push_pull_send_listen();
     test_pub_sub();
     test_pair_chat();
+    test_router_dealer_chat();
 }
 
 fn run_instance(args: &str) -> Result<Wrapper, String> {
@@ -107,9 +121,9 @@ impl Wrapper {
 
         for _ in 1..10 {
             self.1.read_available_to_string(&mut buffer).unwrap();
-            //println!("OUT: {}", buffer);
+            println!("OUT: {}", buffer);
             if buffer.contains(message) {
-                //println!("MATCHED: {}", buffer);
+                println!("MATCHED: {}", buffer);
                 return Ok(());
             }
             sleep(Duration::from_millis(100));
