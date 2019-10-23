@@ -177,24 +177,35 @@ pub fn chat(parameters: SocketParameters) -> Result<(), Box<dyn Error>> {
     println!("Chat {:?}", parameters.address);
 
     let chat = Chat::new(&parameters)?;
-
-    sleep(Duration::from_millis(100));
-
+    let mut rl = rustyline::Editor::<()>::new();
+    let _ = rl.load_history("history.txt");
     loop {
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input)?;
-        input.pop();
-        if input.len() > 0 {
-            match chat.send(&input) {
-                Ok(_) => println!("sent: {}", input.as_str()),
-                Err(err) => println!("error: {}", err)
+        let readline = rl.readline(">> ");
+        match readline {
+            Ok(mut line) => {
+                rl.add_history_entry(line.as_str());
+                line.pop();
+                if line.len() > 0 {
+                    match chat.send(&line) {
+                        Ok(_) => println!("sent: {}", line.as_str()),
+                        Err(err) => println!("error: {}", err)
+                    }
+                } else {
+                    if let Ok(message) = chat.receive() {
+                        println!("received: {:?}", message);
+                    }
+
+                }
+            },
+            Err(rustyline::error::ReadlineError::Interrupted) | Err(rustyline::error::ReadlineError::Eof) => {
+                break
+            },
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break
             }
         }
-
-        sleep(Duration::from_millis(100));
-
-        if let Ok(message) = chat.receive() {
-            println!("received: {:?}", message);
-        }
     }
+    rl.save_history("history.txt")?;
+    Ok(())
 }
