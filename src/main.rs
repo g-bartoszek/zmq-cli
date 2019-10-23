@@ -36,7 +36,8 @@ fn extract_common_parameters<'a>(matches: &'a ArgMatches) -> SocketParameters<'a
         address: matches.value_of("address").unwrap(),
         socket_type,
         association_type: a,
-        socket_id: matches.value_of("socket id").or_else(|| None)
+        socket_id: matches.value_of("socket id"),
+        topic: matches.value_of("topic")
     }
 }
 
@@ -88,7 +89,7 @@ fn main() {
         }
         ("listen", Some(matches)) => {
             let parameters = extract_common_parameters(matches);
-            listen(matches.value_of("topic"), parameters)
+            listen(parameters)
         }
         ("chat", Some(matches)) => {
             let parameters = extract_common_parameters(matches);

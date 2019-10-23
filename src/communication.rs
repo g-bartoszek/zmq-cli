@@ -1,6 +1,7 @@
 use std::time::Duration;
 use std::error::Error;
 use std::thread::sleep;
+use zmq::{Context, Socket};
 
 pub enum AssociationType {
     Bind,
@@ -13,6 +14,7 @@ pub struct SocketParameters<'a>
     pub socket_type: SocketType,
     pub association_type: AssociationType,
     pub socket_id: Option<&'a str>,
+    pub topic: Option<&'a str>,
 }
 
 #[allow(non_camel_case_types)]
@@ -108,6 +110,8 @@ pub fn create_socket(ctx: &zmq::Context, parameters: &SocketParameters) -> Resul
         socket.set_identity(id.as_bytes())?;
     }
 
+    let _ = socket.set_subscribe(parameters.topic.unwrap_or("").as_bytes());
+
     match parameters.association_type {
         AssociationType::Connect => socket.connect(parameters.address)?,
         AssociationType::Bind => socket.bind(parameters.address)?,
@@ -116,13 +120,11 @@ pub fn create_socket(ctx: &zmq::Context, parameters: &SocketParameters) -> Resul
     Ok(socket)
 }
 
-pub fn listen(topic: Option<&str>, parameters: SocketParameters) -> Result<(), Box<dyn Error>> {
+pub fn listen(parameters: SocketParameters) -> Result<(), Box<dyn Error>> {
     println!("Listening {:?}", parameters.address);
     let ctx = zmq::Context::new();
 
     let socket = create_socket(&ctx, &parameters)?;
-
-    let _ = socket.set_subscribe(topic.unwrap_or("").as_bytes());
 
     loop {
         let msg = socket.recv_msg(0)?;
@@ -140,12 +142,41 @@ pub fn send(parameters: SocketParameters, message: &str) -> Result<(), Box<dyn E
     Ok(())
 }
 
+struct Chat {
+    ctx: Context,
+    socket: Socket
+}
+
+impl Chat {
+    fn new(parameters: &SocketParameters) -> Result<Self, Box<dyn Error>> {
+        let ctx = zmq::Context::new();
+        let socket = create_socket(&ctx, &parameters)?;
+        socket.set_rcvtimeo(100)?;
+
+        Ok(Self { ctx, socket })
+    }
+
+    fn send(&self, message: &str) -> Result<(), Box<dyn Error>> {
+       self.socket.send(message, 0)?;
+       Ok(())
+    }
+
+    fn receive(&self) -> Result<Vec<String>, Box<dyn Error>> {
+        let message = self.socket.recv_multipart(0)?;
+        let result = message
+            .iter()
+            .map(|part | {
+                String::from_utf8(part.to_vec())
+            }).collect::<Result<Vec<_>, _>>()?;
+        Ok(result)
+
+    }
+}
+
 pub fn chat(parameters: SocketParameters) -> Result<(), Box<dyn Error>> {
     println!("Chat {:?}", parameters.address);
-    let ctx = zmq::Context::new();
-    let socket = create_socket(&ctx, &parameters)?;
-    socket.set_rcvtimeo(1000)?;
-    let _ = socket.set_subscribe("".as_bytes());
+
+    let chat = Chat::new(&parameters)?;
 
     sleep(Duration::from_millis(100));
 
@@ -154,7 +185,7 @@ pub fn chat(parameters: SocketParameters) -> Result<(), Box<dyn Error>> {
         std::io::stdin().read_line(&mut input)?;
         input.pop();
         if input.len() > 0 {
-            match socket.send(&input, 0) {
+            match chat.send(&input) {
                 Ok(_) => println!("sent: {}", input.as_str()),
                 Err(err) => println!("error: {}", err)
             }
@@ -162,9 +193,8 @@ pub fn chat(parameters: SocketParameters) -> Result<(), Box<dyn Error>> {
 
         sleep(Duration::from_millis(100));
 
-        let _ = socket.recv_multipart(0).and_then(|msg| {
-            println!("received: {:?}", msg.iter().map(|b| std::str::from_utf8(b).unwrap()).collect::<Vec<_>>());
-            Ok(())
-        });
+        if let Ok(message) = chat.receive() {
+            println!("received: {:?}", message);
+        }
     }
 }
