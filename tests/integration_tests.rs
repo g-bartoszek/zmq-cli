@@ -36,10 +36,11 @@ fn test_pair_chat() {
     let mut instance1 = run_instance("chat --address tcp://127.0.0.1:5559 --type PAIR --bind").unwrap();
     let mut instance2 = run_instance("chat --address tcp://127.0.0.1:5559 --type PAIR --connect").unwrap();
 
+
     instance1.write("Hi!\n");
     instance1.write("How are you?\n");
 
-    sleep(Duration::from_secs(1));
+    sleep(Duration::from_millis(500));
 
     instance2.write("\n");
     assert!(instance2.wait_for_message(  "Hi!").is_ok());
@@ -58,13 +59,19 @@ fn test_pair_chat() {
 fn test_router_dealer_chat() {
     let mut router = run_instance("chat --address tcp://127.0.0.1:5559 --type ROUTER --bind").unwrap();
     let mut dealer = run_instance("chat --address tcp://127.0.0.1:5559 --type DEALER --connect --id ID1").unwrap();
+    let mut dealer2 = run_instance("chat --address tcp://127.0.0.1:5559 --type DEALER --connect --id ID2").unwrap();
+
 
     dealer.write("MSG1\n");
+    dealer.write("MSG2\n");
 
-    sleep(Duration::from_secs(1));
+    sleep(Duration::from_millis(500));
 
     router.write("\n");
     assert!(router.wait_for_message(  "[\"ID1\", \"MSG1\"]").is_ok());
+
+    router.write("\n");
+    assert!(router.wait_for_message(  "[\"ID1\", \"MSG2\"]").is_ok());
 
 }
 
