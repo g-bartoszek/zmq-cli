@@ -55,8 +55,12 @@ fn main() {
                 .short("m")
                 .takes_value(true)
                 .required(true)
-                .multiple(true)))
-        .subcommand(set_common_socket_args(SubCommand::with_name("listen"),
+                .multiple(true))
+            .arg(Arg::with_name("topic")
+                .long("topic")
+                .short("t")
+                .takes_value(true)))
+    .subcommand(set_common_socket_args(SubCommand::with_name("listen"),
                                            &[
                                                SocketType::PULL.into(),
                                                SocketType::SUB.into(),

@@ -1,7 +1,7 @@
 use std::time::Duration;
 use std::error::Error;
 use std::thread::sleep;
-use zmq::{Context, Socket};
+use zmq::{Context, Socket, SNDMORE};
 
 pub enum AssociationType {
     Bind,
@@ -138,6 +138,11 @@ pub fn send(parameters: SocketParameters, message: &str) -> Result<(), Box<dyn E
     let socket = create_socket(&ctx, &parameters)?;
 
     sleep(Duration::from_millis(100));
+
+    if let Some(topic) = parameters.topic {
+        socket.send(topic, SNDMORE);
+    }
+
     socket.send(message, 0)?;
     Ok(())
 }
