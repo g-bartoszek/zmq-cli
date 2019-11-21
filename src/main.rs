@@ -112,7 +112,7 @@ fn main() {
 pub fn chat(parameters: SocketParameters) -> Result<(), Box<dyn Error>> {
     println!("Chat {:?}", parameters.address);
 
-    let chat = Chat::new(&parameters)?;
+    let mut chat = Chat::new(&parameters)?;
     let mut rl = rustyline::Editor::<()>::new();
     let _ = rl.load_history("history.txt");
     loop {
@@ -120,18 +120,7 @@ pub fn chat(parameters: SocketParameters) -> Result<(), Box<dyn Error>> {
         match readline {
             Ok(mut line) => {
                 rl.add_history_entry(line.as_str());
-                line.pop();
-                if line.len() > 0 {
-                    match chat.send(&line) {
-                        Ok(_) => println!("sent: {}", line.as_str()),
-                        Err(err) => println!("error: {}", err)
-                    }
-                } else {
-                    if let Ok(message) = chat.receive() {
-                        println!("received: {:?}", message);
-                    }
-
-                }
+                execute_chat_command(&mut chat, parse_chat_command(line));
             },
             Err(rustyline::error::ReadlineError::Interrupted) | Err(rustyline::error::ReadlineError::Eof) => {
                 break
@@ -154,19 +143,31 @@ enum ChatCommand {
 }
 
 
-fn tokenize(input: &str) -> Vec<&str> {
-    regex::Regex::new("[^\\s\"']+|\"([^\"]*)\"|'([^']*)'").unwrap().captures_iter(input).map(CaptureMatches::).collect()
+fn tokenize(input: &str) -> Vec<String> {
+    let mut r = Vec::<String>::new();
+
+    for c in regex::Regex::new("['\"](.+)['\"]|([^\\s\"']\\S*[^\\s\"'])")
+        .unwrap()
+        .captures_iter(input) {
+        //println!("Not quoted: {:?}", c);
+        if let Some(m)  = c.get(1) {
+            r.push(m.as_str().to_string());
+        } else if let Some(m)  = c.get(2) {
+            r.push(m.as_str().to_string());
+        }
+    }
+
+    r
 }
 
 fn parse_chat_command(input: String) -> ChatCommand {
-
     let matches = App::new("chat")
         .setting(AppSettings::NoBinaryName)
         .setting(AppSettings::InferSubcommands)
         .arg(Arg::with_name("receive").long("receive").short("r").takes_value(false))
         .arg(Arg::with_name("send").long("send").short("s").takes_value(true).conflicts_with("receive"))
         .arg(Arg::with_name("receiver id").long("id").takes_value(true).conflicts_with("receive"))
-        .get_matches_from_safe(input.split_whitespace().into_iter());
+        .get_matches_from_safe(tokenize(input.as_str()).into_iter());
 
     if let Ok(m) = matches {
         if m.is_present("receive") {
@@ -217,7 +218,10 @@ mod test {
 
     #[test]
     fn tokenizing() {
-        assert_eq!(vec!["word"], tokenize("word"))
+        assert_eq!(vec!["word", "word2"], tokenize("word word2"));
+        assert_eq!(vec!["two words"], tokenize("\"two words\""));
+        assert_eq!(vec!["word", "two words"], tokenize("word \"two words\""));
+        assert_eq!(vec!["word", "two words"], tokenize("word 'two words'"));
     }
 
     #[test]
@@ -232,6 +236,7 @@ mod test {
         assert_eq!(ChatCommand::Send(String::from("multiple words")), parse_chat_command("multiple words".to_string()));
         assert_eq!(ChatCommand::Send(String::from("multiple words")), parse_chat_command("-s 'multiple words'".to_string()));
         assert_eq!(ChatCommand::SendTo(String::from("ID1"), String::from("message")), parse_chat_command("--id ID1 -s message".to_string()));
+        assert_eq!(ChatCommand::Send(String::from("Hi again")), parse_chat_command("--send \"Hi again\"".to_string()));
     }
 }
 
