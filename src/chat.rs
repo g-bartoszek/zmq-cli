@@ -130,8 +130,8 @@ fn execute_chat_command(chat: &mut Chat, command: ChatCommand) {
                 Err(err) => println!("error: {}", err)
             }
         },
-        ChatCommand::SendTo(_id, message) => {
-            match chat.send(&message) {
+        ChatCommand::SendTo(id, message) => {
+            match chat.send_with_id(&id, &message) {
                 Ok(_) => println!("sent: {}", message),
                 Err(err) => println!("error: {}", err)
             }

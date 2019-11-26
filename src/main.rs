@@ -85,8 +85,6 @@ fn main() {
                                            ]))
         .get_matches();
 
-    //println!("{:?}", matches);
-
     match match matches.subcommand() {
         ("send", Some(matches)) => {
             let parameters = extract_common_parameters(matches);

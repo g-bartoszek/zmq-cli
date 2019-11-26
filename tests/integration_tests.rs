@@ -34,13 +34,13 @@ fn test_pub_sub() {
 }
 
 fn test_pair_chat() {
-    let mut instance1 = chat::Chat::new(&socket::SocketParameters{
+    let instance1 = chat::Chat::new(&socket::SocketParameters{
         address: "tcp://127.0.0.1:5559",
         association_type: socket::AssociationType::Bind,
         socket_type: socket::SocketType::PAIR,
         socket_id: None,
         topic: None}).unwrap();
-    let mut instance2 = chat::Chat::new(&socket::SocketParameters{
+    let instance2 = chat::Chat::new(&socket::SocketParameters{
         address: "tcp://127.0.0.1:5559",
         association_type: socket::AssociationType::Connect,
         socket_type: socket::SocketType::PAIR,
@@ -48,32 +48,32 @@ fn test_pair_chat() {
         topic: None}).unwrap();
 
 
-    instance1.send("Hi!");
-    instance1.send("How are you?");
+    instance1.send("Hi!").unwrap();
+    instance1.send("How are you?").unwrap();
 
     sleep(Duration::from_millis(500));
 
     assert_eq!("Hi!", instance2.receive().unwrap()[0].as_str() );
     assert_eq!("How are you?", instance2.receive().unwrap()[0].as_str());
 
-    instance2.send("I'm fine");
+    instance2.send("I'm fine").unwrap();
     assert_eq!("I'm fine", instance1.receive().unwrap()[0].as_str());
 }
 
 fn test_router_dealer_chat() {
-    let mut router = chat::Chat::new(&socket::SocketParameters{
+    let router = chat::Chat::new(&socket::SocketParameters{
         address: "tcp://127.0.0.1:5559",
         association_type: socket::AssociationType::Bind,
         socket_type: socket::SocketType::ROUTER,
         socket_id: None,
         topic: None}).unwrap();
-    let mut dealer = chat::Chat::new(&socket::SocketParameters{
+    let dealer = chat::Chat::new(&socket::SocketParameters{
         address: "tcp://127.0.0.1:5559",
         association_type: socket::AssociationType::Connect,
         socket_type: socket::SocketType::DEALER,
         socket_id: Some("ID1"),
         topic: None}).unwrap();
-    let mut dealer2 = chat::Chat::new(&socket::SocketParameters{
+    let dealer2 = chat::Chat::new(&socket::SocketParameters{
         address: "tcp://127.0.0.1:5559",
         association_type: socket::AssociationType::Connect,
         socket_type: socket::SocketType::DEALER,
@@ -81,16 +81,16 @@ fn test_router_dealer_chat() {
         topic: None}).unwrap();
 
 
-    dealer.send("MSG1");
-    dealer.send("MSG2");
+    dealer.send("MSG1").unwrap();
+    dealer.send("MSG2").unwrap();
 
     sleep(Duration::from_millis(500));
 
     assert_eq!(["ID1", "MSG1"], router.receive().unwrap()[0..2]);
     assert_eq!(["ID1", "MSG2"], router.receive().unwrap()[0..2]);
 
-    router.send_with_id("ID1", "MSG3");
-    router.send_with_id("ID2", "MSG4");
+    router.send_with_id("ID1", "MSG3").unwrap();
+    router.send_with_id("ID2", "MSG4").unwrap();
 
     assert_eq!("MSG3", dealer.receive().unwrap()[0].as_str());
     assert_eq!("MSG4", dealer2.receive().unwrap()[0].as_str());
@@ -161,7 +161,7 @@ impl Wrapper {
         Err("Message not received")
     }
 
-    fn write(&mut self, input: &str) {
+    fn _write(&mut self, input: &str) {
         self.stdin.as_mut().unwrap().write(input.as_bytes()).unwrap();
     }
 }
