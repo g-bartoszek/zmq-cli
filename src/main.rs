@@ -1,7 +1,5 @@
 mod communication;
-mod socket;
-mod chat;
-
+use rzmq::{chat, socket, validation};
 use clap::{App, SubCommand, AppSettings, Arg, ArgMatches};
 use communication::*;
 use socket::{AssociationType, SocketType, SocketParameters};
@@ -11,7 +9,8 @@ fn set_common_socket_args<'a, 'b>(subcommand: App<'a, 'b>, socket_types: &[&'sta
         .long("address")
         .short("a")
         .takes_value(true)
-        .required(true))
+        .required(true)
+        .validator(validation::validate_socket))
         .arg(Arg::with_name("socket type")
             .long("type")
             .possible_values(socket_types)
@@ -107,4 +106,5 @@ fn main() {
         }
     };
 }
+
 
