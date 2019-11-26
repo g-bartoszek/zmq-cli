@@ -6,6 +6,7 @@ use std::time::Duration;
 use nonblock::NonBlockingReader;
 use std::ops::{Deref, DerefMut};
 
+use rzmq::{chat, socket};
 
 fn test_push_pull_send_listen() {
     let test_message = "TEST MESSAGE 12345";
@@ -33,45 +34,66 @@ fn test_pub_sub() {
 }
 
 fn test_pair_chat() {
-    let mut instance1 = run_instance("chat --address tcp://127.0.0.1:5559 --type PAIR --bind").unwrap();
-    let mut instance2 = run_instance("chat --address tcp://127.0.0.1:5559 --type PAIR --connect").unwrap();
+    let mut instance1 = chat::Chat::new(&socket::SocketParameters{
+        address: "tcp://127.0.0.1:5559",
+        association_type: socket::AssociationType::Bind,
+        socket_type: socket::SocketType::PAIR,
+        socket_id: None,
+        topic: None}).unwrap();
+    let mut instance2 = chat::Chat::new(&socket::SocketParameters{
+        address: "tcp://127.0.0.1:5559",
+        association_type: socket::AssociationType::Connect,
+        socket_type: socket::SocketType::PAIR,
+        socket_id: None,
+        topic: None}).unwrap();
 
 
-    instance1.write("Hi!\n");
-    instance1.write("How are you?\n");
+    instance1.send("Hi!");
+    instance1.send("How are you?");
 
     sleep(Duration::from_millis(500));
 
-    instance2.write("\n");
-    assert!(instance2.wait_for_message(  "Hi!").is_ok());
+    assert_eq!("Hi!", instance2.receive().unwrap()[0].as_str() );
+    assert_eq!("How are you?", instance2.receive().unwrap()[0].as_str());
 
-    instance2.write("\n");
-    assert!(instance2.wait_for_message(  "How are you?").is_ok());
-
-    instance2.write("I'm fine\n");
-
-    instance1.write("\n");
-    assert!(instance1.wait_for_message( "fine").is_ok());
-
-
+    instance2.send("I'm fine");
+    assert_eq!("I'm fine", instance1.receive().unwrap()[0].as_str());
 }
 
 fn test_router_dealer_chat() {
-    let mut router = run_instance("chat --address tcp://127.0.0.1:5559 --type ROUTER --bind").unwrap();
-    let mut dealer = run_instance("chat --address tcp://127.0.0.1:5559 --type DEALER --connect --id ID1").unwrap();
-    let mut dealer2 = run_instance("chat --address tcp://127.0.0.1:5559 --type DEALER --connect --id ID2").unwrap();
+    let mut router = chat::Chat::new(&socket::SocketParameters{
+        address: "tcp://127.0.0.1:5559",
+        association_type: socket::AssociationType::Bind,
+        socket_type: socket::SocketType::ROUTER,
+        socket_id: None,
+        topic: None}).unwrap();
+    let mut dealer = chat::Chat::new(&socket::SocketParameters{
+        address: "tcp://127.0.0.1:5559",
+        association_type: socket::AssociationType::Connect,
+        socket_type: socket::SocketType::DEALER,
+        socket_id: Some("ID1"),
+        topic: None}).unwrap();
+    let mut dealer2 = chat::Chat::new(&socket::SocketParameters{
+        address: "tcp://127.0.0.1:5559",
+        association_type: socket::AssociationType::Connect,
+        socket_type: socket::SocketType::DEALER,
+        socket_id: Some("ID2"),
+        topic: None}).unwrap();
 
 
-    dealer.write("MSG1\n");
-    dealer.write("MSG2\n");
+    dealer.send("MSG1");
+    dealer.send("MSG2");
 
     sleep(Duration::from_millis(500));
 
-    router.write("\n");
-    assert!(router.wait_for_message(  "[\"ID1\", \"MSG1\"]").is_ok());
+    assert_eq!(["ID1", "MSG1"], router.receive().unwrap()[0..2]);
+    assert_eq!(["ID1", "MSG2"], router.receive().unwrap()[0..2]);
 
-    router.write("\n");
-    assert!(router.wait_for_message(  "[\"ID1\", \"MSG2\"]").is_ok());
+    router.send_with_id("ID1", "MSG3");
+    router.send_with_id("ID2", "MSG4");
+
+    assert_eq!("MSG3", dealer.receive().unwrap()[0].as_str());
+    assert_eq!("MSG4", dealer2.receive().unwrap()[0].as_str());
 
 }
 

@@ -23,6 +23,11 @@ impl Chat {
         Ok(())
     }
 
+    pub fn send_with_id(&self, id: &str, message: &str) -> Result<(), Box<dyn Error>> {
+        self.socket.send_multipart(&[id, message], 0)?;
+        Ok(())
+    }
+
     pub fn receive(&self) -> Result<Vec<String>, Box<dyn Error>> {
         let message = self.socket.recv_multipart(0)?;
         let result = message
