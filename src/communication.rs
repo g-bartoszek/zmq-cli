@@ -24,7 +24,7 @@ pub fn send(parameters: SocketParameters, message: &str) -> Result<(), Box<dyn E
     sleep(Duration::from_millis(100));
 
     if let Some(topic) = parameters.topic {
-        socket.send(topic, SNDMORE);
+        socket.send(topic, zmq::SNDMORE)?
     }
 
     socket.send(message, 0)?;
