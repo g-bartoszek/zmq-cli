@@ -17,6 +17,15 @@ fn test_push_pull_send_listen() {
     assert!(listener.wait_for_message(test_message).is_ok());
 }
 
+fn test_push_pull_with_json_config() {
+    let test_message = "TEST MESSAGE 12345";
+
+    let mut listener = run_instance("listen --config test_config.json").unwrap();
+    let _send = run_instance(format!("send --message {} --config test_config.json --type PUSH --connect", test_message).as_str()).unwrap();
+
+    assert!(listener.wait_for_message(test_message).is_ok());
+}
+
 fn test_pub_sub() {
     let test_message_wo_topic = "TEST MESSAGE1";
     let test_message_with_topic = "TOPIC1 TEST MESSAGE2";
@@ -100,6 +109,7 @@ fn test_router_dealer_chat() {
 #[test]
 fn integration_tests() {
     test_push_pull_send_listen();
+    test_push_pull_with_json_config();
     test_pub_sub();
     test_pair_chat();
     test_router_dealer_chat();

@@ -1,0 +1,7 @@
+{
+  "address": "tcp://localhost:5559",
+  "socket_type": "PULL",
+  "association_type": "bind",
+  "socket_id": null,
+  "topic": null
+}

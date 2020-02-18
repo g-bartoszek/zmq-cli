@@ -1,10 +1,21 @@
 use std::error::Error;
+use serde::Deserialize;
 
+#[derive(Deserialize)]
 pub enum AssociationType {
+    #[serde(alias = "bind")]
     Bind,
+    #[serde(alias = "connect")]
     Connect,
 }
 
+impl Default for AssociationType {
+    fn default() -> Self {
+        AssociationType::Bind
+    }
+}
+
+#[derive(Default, Deserialize)]
 pub struct SocketParameters<'a>
 {
     pub address: &'a str,
@@ -14,6 +25,7 @@ pub struct SocketParameters<'a>
     pub topic: Option<&'a str>,
 }
 
+#[derive(Deserialize)]
 #[allow(non_camel_case_types)]
 pub enum SocketType {
     PUB,
@@ -25,6 +37,12 @@ pub enum SocketType {
     PAIR,
     ROUTER,
     DEALER,
+}
+
+impl Default for SocketType {
+    fn default() -> Self {
+        SocketType::PAIR
+    }
 }
 
 impl SocketType {
@@ -116,3 +134,28 @@ pub fn create_socket(ctx: &zmq::Context, parameters: &SocketParameters) -> Resul
 
     Ok(socket)
 }
+
+pub fn parse(json: &str) -> SocketParameters {
+    serde_json::from_str(json).unwrap() //.unwrap_or_else(|_| SocketParameters::default())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn parsing_socket_parameters_from_json() {
+        let json =
+            r#"{
+                "address": "tcp://localhost:5559",
+                "socket_type": "PULL",
+                "association_type": "bind",
+                "socket_id": "ID1",
+                "topic": "TOPIC1"
+            }"#;
+
+        let parsed = parse(json);
+        assert_eq!(Some("TOPIC1"), parsed.topic);
+    }
+}
+

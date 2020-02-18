@@ -9,7 +9,7 @@ fn set_common_socket_args<'a, 'b>(subcommand: App<'a, 'b>, socket_types: &[&'sta
         .long("address")
         .short("a")
         .takes_value(true)
-        .required(true)
+        .required_unless("config")
         .validator(validation::validate_socket))
         .arg(Arg::with_name("socket type")
             .long("type")
@@ -20,6 +20,7 @@ fn set_common_socket_args<'a, 'b>(subcommand: App<'a, 'b>, socket_types: &[&'sta
             .takes_value(true))
         .arg(Arg::with_name("bind").long("bind").conflicts_with("connect"))
         .arg(Arg::with_name("connect").long("connect"))
+        .arg(Arg::with_name("config").long("config").short("c").takes_value(true))
 }
 
 fn extract_common_parameters<'a>(matches: &'a ArgMatches) -> SocketParameters<'a> {
@@ -55,7 +56,7 @@ fn main() {
                 .long("message")
                 .short("m")
                 .takes_value(true)
-                .required(true)
+                .required_unless("config")
                 .multiple(true))
             .arg(Arg::with_name("topic")
                 .long("topic")
