@@ -1,0 +1,7 @@
+[target.arm-unknown-linux-gnueabihf]
+linker = "/home/gb/gcc-linaro-arm-linux-gnueabihf-4.8-2014.04_linux/bin/arm-linux-gnueabihf-gcc"
+
+[target.arm-unknown-linux-gnueabihf.zmq]
+rustc-link-search = ["/home/gb", "/home/gb/gcc-linaro-arm-linux-gnueabihf-4.8-2014.04_linux/bin"]
+rustc-link-lib = ["zmq", "stdc++"]
+
